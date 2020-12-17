@@ -236,9 +236,37 @@ endif()
 option(fletch_BUILD_WITH_CUDA "Build with CUDA support" FALSE)
 
 if (fletch_BUILD_WITH_CUDA)
-  find_package( CUDA QUIET REQUIRED )
 
-  file(APPEND ${fletch_CONFIG_INPUT} "
+  if(${CMAKE_VERSION} VERSION_GREATER_EQUAL  "3.17.0")
+    find_package( CUDAToolkit QUIET REQUIRED )
+    
+    file(APPEND ${fletch_CONFIG_INPUT} "
+########################################
+# CUDAToolkit
+########################################
+set(CUDAToolkit_ROOT    \"${CUDAToolkit_ROOT}\")
+set(fletch_BUILT_WITH_CUDA TRUE)
+set(fletch_CUDA_VERSION ${CUDAToolkit_VERSION})
+set(fletch_CUDA_VERSION_MAJOR ${CUDAToolkit_VERSION_MAJOR})
+set(fletch_CUDA_VERSION_MINOR ${CUDAToolkit_VERSION_MINOR})
+set(fletch_CUDA_VERSION_PATCH ${CUDAToolkit_VERSION_PATCH})
+  ")
+  else()
+    find_package( CUDA QUIET REQUIRED )
+    # Since we are a superbuild, we will be passing the cuda compiler path to what we build
+    # Generally when using MSVC, the value will use an MSVC $() expression
+    # When MSVC resolves this expression, it will probably  contain spaces (i.e. C:\Program Files
+    # And if so, CMake will probably not have propery quoted the string
+    # So let's add a space at the end force cmake to always quote this value when passing to external projects
+    string(FIND ${CUDA_HOST_COMPILER} " " _space)
+    string(FIND ${CUDA_HOST_COMPILER} "$(VCInstallDir)" _vcinstalldir)
+    message(STATUS "_space=${_space}, _vcinstalldir=${_vcinstalldir}")
+    if(${_vcinstalldir} GREATER -1 AND ${_space} EQUAL -1)
+      set(CUDA_HOST_COMPILER "${CUDA_HOST_COMPILER} /")
+      message(STATUS "Modified the CUDA_HOST_COMPILER to ${CUDA_HOST_COMPILER}")
+    endif()
+    
+    file(APPEND ${fletch_CONFIG_INPUT} "
 ########################################
 # CUDA
 ########################################
@@ -249,6 +277,7 @@ set(fletch_CUDA_VERSION_MINOR ${CUDA_VERSION_MINOR})
 set(fletch_CUDA_VERSION ${CUDA_VERSION})
 set(fletch_CUDA_VERSION_STRING ${CUDA_VERSION_STRING})
   ")
+  endif()
 
   option(fletch_BUILD_WITH_CUDNN "Build with CUDNN support" FALSE)
   if (fletch_BUILD_WITH_CUDNN)
